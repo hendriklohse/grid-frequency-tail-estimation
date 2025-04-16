@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from scipy.optimize import minimize_scalar
 import matplotlib.pyplot as plt
+import scipy.stats as stats
 import seaborn as sns
 
 def read_df(grid_name, season):
@@ -84,6 +85,48 @@ def read_df(grid_name, season):
 		raise ValueError("Invalid grid name. Choose from 'european', 'nordic', or 'uk'.")
 	return df
 
+def plot_histogram(df, season, grid_name, save_path):
+
+	plt.figure(figsize=(10, 6))
+	plt.hist(
+		df["Value"],
+		bins=1000,
+		color="blue",
+		edgecolor="black",
+	)
+	plt.title(f"Histogram ({season} - {grid_name})")
+	plt.xlabel("Frequency")
+	plt.ylabel("Frequency Count")
+	plt.grid(True)
+	plt.savefig(os.path.join(save_path, "histogram.png"))
+	plt.show()
+
+def plot_QQ_plot(df, season, grid_name, save_path):
+
+	stats.probplot(df["Value"], dist="norm", plot=plt)
+	plt.title(f"Q-Q Plot ({season} - {grid_name})")
+	plt.savefig(os.path.join(save_path, "qq_plot.png"))
+	plt.show()
+
+def print_stats(df):
+	def calculate_and_print_percentage(df_, lower_bound, upper_bound, description):
+		percentage = ((df_["Value"] > lower_bound) & (df_["Value"] <= upper_bound)).mean() * 100
+		print(f"% of entries {description}: {percentage}%")
+
+	frequency_ranges = [
+		(float("-inf"), 49.9, "below 49.9"),
+		(50.1, float("inf"), "above 50.1"),
+		(float("-inf"), 49.8, "below 49.8"),
+		(50.2, float("inf"), "above 50.2"),
+		(float("-inf"), 49.7, "below 49.7"),
+		(50.3, float("inf"), "above 50.3"),
+	]
+
+	for lower_bound, upper_bound, description in frequency_ranges:
+		calculate_and_print_percentage(
+			df, lower_bound, upper_bound, description
+		)
+
 def censored_log_likelihood(beta, alpha, xi):
 	if beta <= 0:
 		return np.inf
@@ -133,7 +176,7 @@ def optimize_thresholds_heatmap(df, thresholds, alpha_range, direction, grid_nam
 	if results:
 		df_results = pd.DataFrame(results)
 		# Save results to CSV
-		df_results.to_csv(os.path.join(save_path, f'grid_search_{grid_name}_{direction}.csv'), index=False)
+		df_results.to_csv(os.path.join(save_path, f'mle_{grid_name}_{direction}.csv'), index=False)
 
 		# Heatmap: Negative Log-Likelihood
 		pivot_ll = df_results.pivot(index='alpha', columns='threshold', values='neg_log_likelihood')
@@ -249,23 +292,16 @@ for season in seasons:
 					thresholds = np.linspace(49.80, 49.90, 20)
 			else:
 				raise ValueError("Direction must be 'right' or 'left'.")
+
 			optimize_thresholds_heatmap(df, thresholds=thresholds, alpha_range=alpha_range, direction=direction, grid_name=grid_name, save_path=save_path)
 			# beta_range = np.linspace(1.0, 3.0, 500)
 			# print('\nGrid Search for Thresholds:')
 			# grid_search_thresholds(df, thresholds=thresholds, alpha_range=alpha_range, beta_range=beta_range, direction=direction, grid_name=grid_name, save_path=save_path)
 
-# Example usage:
-# grid_name = 'nordic'  # 'european', 'nordic', or 'uk'
-# direction = 'right'
-# df = read_df(grid_name)
-# alpha_range = np.linspace(0.01, 4.00, 50)
-# if grid_name == 'european':
-# 	thresholds = np.linspace(50.05, 50.15, 10)
-# else:
-# 	thresholds = np.linspace(50.10, 50.20, 10)
-# print('Optimizing Thresholds:')
-# optimize_thresholds_heatmap(df, thresholds=thresholds, alpha_range=alpha_range, grid_name=grid_name, direction=direction)
-
-# beta_range = np.linspace(1.0, 3.0, 30)
-# print('\nGrid Search for Thresholds:')
-# grid_search_thresholds(df, thresholds=thresholds, alpha_range=alpha_range, beta_range=beta_range, direction=direction)
+# for season in seasons:
+# 	for grid_name in grid_names:
+# 		save_path_eda = os.path.join(os.getcwd(), "results_new2", season, grid_name, "eda")
+# 		os.makedirs(save_path_eda, exist_ok=True)
+# 		df = read_df(grid_name, season)
+# 		plot_histogram(df, season, grid_name, save_path=save_path_eda)
+# 		plot_QQ_plot(df, season, grid_name, save_path=save_path_eda)
