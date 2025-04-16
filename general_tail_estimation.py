@@ -5,6 +5,8 @@ from scipy.optimize import minimize_scalar
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import seaborn as sns
+from scipy.stats import weibull_min
+from scipy.stats import levy_stable
 
 def read_df(grid_name, season):
 
@@ -212,6 +214,76 @@ def optimize_thresholds_heatmap(df, thresholds, alpha_range, direction, grid_nam
 
 	return pd.DataFrame(results)
 
+def fit_levy_stable(df, thresholds, direction, grid_name, save_path):
+
+	for threshold in thresholds:
+		if direction == 'right': # from threshold to right [x_th, inf)
+			tail_data = df[df['Value'] >= threshold]['Value']
+			x_data = 50.00 + (tail_data - 50.00).sort_values(ascending=True).values
+		elif direction == 'left': # from left to threshold (-inf, x_th]
+			tail_data = df[df['Value'] <= threshold]['Value']
+			x_data = 50.00 - (50.00 - tail_data).sort_values(ascending=False).values
+		else:
+			raise ValueError("Direction must be 'right' or 'left'.")
+
+		# x_data = tail_data.sort_values(ascending=True).values
+		# print(f"Threshold {threshold:.2f} → {len(x_data)} tail points")
+		if len(x_data) < 20 or np.any(x_data <= 0):
+			continue
+
+		# Fit Stable
+		alpha, beta, loc_s, scale_s = levy_stable._fitstart(x_data)
+		stable_params = levy_stable.fit(x_data, floc=0)
+		stable_pdf = levy_stable.pdf(np.sort(x_data), *stable_params)
+
+		# Plotting comparison
+		plt.figure(figsize=(10, 6))
+		sns.histplot(x_data, bins=100, stat='density', label='Empirical', color='lightgray', edgecolor='black')
+		plt.plot(np.sort(x_data), stable_pdf, label=f'Stable (α={stable_params[0]:.2f}, β={stable_params[1]:.2f})')
+		plt.title(f'Weibull Fit ({direction.title()} Tail) - {grid_name.title()})')
+		plt.xlabel('x')
+		plt.ylabel('Density')
+		plt.legend()
+		plt.grid(True)
+		plt.tight_layout()
+		# plt.savefig(os.path.join(save_path, f'levy_stable_fit_{direction}_{round(threshold, 3)}_{grid_name}.png'))
+		plt.show()
+
+
+def fit_weibull(df, thresholds, direction, grid_name, save_path):
+
+	for threshold in thresholds:
+		if direction == 'right': # from threshold to right [x_th, inf)
+			tail_data = df[df['Value'] >= threshold]['Value']
+			x_data = 50.00 + (tail_data - 50.00).sort_values(ascending=True).values
+		elif direction == 'left': # from left to threshold (-inf, x_th]
+			tail_data = df[df['Value'] <= threshold]['Value']
+			x_data = 50.00 - (50.00 - tail_data).sort_values(ascending=False).values
+		else:
+			raise ValueError("Direction must be 'right' or 'left'.")
+
+		# x_data = tail_data.sort_values(ascending=True).values
+		# print(f"Threshold {threshold:.2f} → {len(x_data)} tail points")
+		if len(x_data) < 20 or np.any(x_data <= 0):
+			continue
+
+		# Fit Weibull
+		c, loc, scale = weibull_min.fit(x_data, floc=0)
+		weibull_pdf = weibull_min.pdf(np.sort(x_data), c, loc=loc, scale=scale)
+
+		# Plotting comparison
+		plt.figure(figsize=(10, 6))
+		sns.histplot(x_data, bins=100, stat='density', label='Empirical', color='lightgray', edgecolor='black')
+		plt.plot(np.sort(x_data), weibull_pdf, label=f'Weibull (c={c:.2f}, scale={scale:.2f})')
+		plt.title(f'Weibull Fit ({direction.title()} Tail) - {grid_name.title()})')
+		plt.xlabel('x')
+		plt.ylabel('Density')
+		plt.legend()
+		plt.grid(True)
+		plt.tight_layout()
+		# plt.savefig(os.path.join(save_path, f'weibull_fit_{direction}_{round(threshold, 3)}_{grid_name}.png'))
+		plt.show()
+
 def grid_search_thresholds(df, thresholds, alpha_range, beta_range, direction, grid_name, save_path):
 	results = []
 
@@ -297,6 +369,9 @@ for season in seasons:
 			# beta_range = np.linspace(1.0, 3.0, 500)
 			# print('\nGrid Search for Thresholds:')
 			# grid_search_thresholds(df, thresholds=thresholds, alpha_range=alpha_range, beta_range=beta_range, direction=direction, grid_name=grid_name, save_path=save_path)
+
+			# fit_levy_stable(df, thresholds, direction, grid_name, save_path)
+			# fit_weibull(df, thresholds, direction, grid_name, save_path)
 
 # for season in seasons:
 # 	for grid_name in grid_names:
