@@ -480,12 +480,12 @@ directions = ['right', 'left']
 for season in seasons:
     for grid_name in grid_names:
         for direction in directions:
-            save_path = os.path.join(os.getcwd(), "results_new_decision", season, grid_name, direction)
+            save_path = os.path.join(os.getcwd(), "results_new_decision_extend_2", season, grid_name, direction)
             os.makedirs(save_path, exist_ok=True)
 
             print(f"Season: {season}, Grid: {grid_name}, Direction: {direction}")
             df = read_df(grid_name, season)
-            alpha_range = np.arange(0.001, 10, 0.001) #[10**n for n in range(-10, 11)]
+            alpha_range = np.arange(100, 1000, 0.1) #[10**n for n in range(-10, 11)]
             # alpha_range = [(1/100)*(2**n) for n in range(-15, 5+1)] #np.linspace(0.01, 10, 20)
             if direction == 'right':
                 if grid_name == 'european':
