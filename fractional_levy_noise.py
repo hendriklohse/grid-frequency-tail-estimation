@@ -61,7 +61,7 @@ def truncated_levy_stable(trunc: float, alpha: float, beta: float, size: int, mu
     too_big = np.where(np.abs(z) > trunc)[0]
 
     while too_big.size > 0:
-        print("Truncating", too_big.size, "values")
+        # print("Truncating", too_big.size, "values")
         z[too_big] = levy_stable(alpha=alpha, beta=beta, mu=mu, sigma=sigma, size=too_big.size)
         too_big_remaining = np.where(np.abs(z[too_big]) > trunc)[0]
         too_big = too_big[too_big_remaining]
@@ -136,16 +136,4 @@ def flm(H: float, alpha: float, N: int, trunc: float, scale: float = 1, C: float
     w = np.real(scipy.fft.ifft(Z * A, Na))
 
     return w[0:N * m:m]
-
-# H = 0.5
-# alpha = 0.2
-# N = 100
-# trunc = 5
-# scale = 1
-# C = 1
-# m = 256
-# M = 6000
-# res = flm(H, alpha, N, trunc, scale, C, m, M)
-
-# print(res)
 
