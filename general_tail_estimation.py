@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import scipy.stats as stats
 import seaborn as sns
+from utils import get_extremes_block_maxima
 
 def read_df(grid_name, season):
 
@@ -110,8 +111,8 @@ def plot_QQ_plot(df, season, grid_name, save_path):
     plt.show()
 
 def plot_countour(df, thresholds, direction, season, grid_name, save_path):
-    alphas = np.arange(0.0001, 10, 0.005)
-    betas = np.linspace(0.1, 3, 40)
+    alphas = np.arange(0.1, 100, 0.1) #np.arange(0.0001, 10, 0.05)
+    betas = np.linspace(0.01, 3, 40)
 
     # Prepare a meshgrid for plotting
     A, B = np.meshgrid(alphas, betas)
@@ -127,19 +128,19 @@ def plot_countour(df, thresholds, direction, season, grid_name, save_path):
     for threshold in thresholds:
         if direction == 'right':  # from threshold to right [x_th, inf)
             tail_data = df[df['Value'] >= threshold]['Value']
-            x_data = 50 + (tail_data - 50.00).sort_values(ascending=True).values
+            x_data = (tail_data - 50.00).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = threshold
+                x_k = threshold - 50
         elif direction == 'left':  # from left to threshold (-inf, x_th]
             tail_data = df[df['Value'] <= threshold]['Value']
             tail_data_mirrored = 50 + (50 - tail_data)
-            x_data = 50 + (tail_data_mirrored - 50).sort_values(ascending=True).values
+            x_data = (tail_data_mirrored - 50).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = 50 + (50 - threshold)
+                x_k = 50 - threshold
         else:
             raise ValueError("Direction must be 'right' or 'left'.")
 
@@ -186,19 +187,19 @@ def plot_likelihood_fixed_beta(df, thresholds, beta, direction, season, grid_nam
     for threshold in thresholds:
         if direction == 'right':  # from threshold to right [x_th, inf)
             tail_data = df[df['Value'] >= threshold]['Value']
-            x_data = 50 + (tail_data - 50.00).sort_values(ascending=True).values
+            x_data = (tail_data - 50.00).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = threshold
+                x_k = threshold - 50
         elif direction == 'left':  # from left to threshold (-inf, x_th]
             tail_data = df[df['Value'] <= threshold]['Value']
             tail_data_mirrored = 50 + (50 - tail_data)
-            x_data = 50 + (tail_data_mirrored - 50).sort_values(ascending=True).values
+            x_data = (tail_data_mirrored - 50).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = 50 + (50 - threshold)
+                x_k = 50 - threshold
         else:
             raise ValueError("Direction must be 'right' or 'left'.")
 
@@ -235,19 +236,19 @@ def plot_likelihood_fixed_alpha(df, thresholds, alpha, direction, season, grid_n
     for threshold in thresholds:
         if direction == 'right':  # from threshold to right [x_th, inf)
             tail_data = df[df['Value'] >= threshold]['Value']
-            x_data = 50 + (tail_data - 50.00).sort_values(ascending=True).values
+            x_data = (tail_data - 50.00).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = threshold
+                x_k = threshold - 50
         elif direction == 'left':  # from left to threshold (-inf, x_th]
             tail_data = df[df['Value'] <= threshold]['Value']
             tail_data_mirrored = 50 + (50 - tail_data)
-            x_data = 50 + (tail_data_mirrored - 50).sort_values(ascending=True).values
+            x_data = (tail_data_mirrored - 50).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = 50 + (50 - threshold)
+                x_k = 50 - threshold
         else:
             raise ValueError("Direction must be 'right' or 'left'.")
 
@@ -323,21 +324,21 @@ def optimize_thresholds_heatmap(df, thresholds, alpha_range, direction, grid_nam
     results = []
 
     for threshold in thresholds:
-        if direction == 'right': # from threshold to right [x_th, inf)
+        if direction == 'right':  # from threshold to right [x_th, inf)
             tail_data = df[df['Value'] >= threshold]['Value']
-            x_data = 50 + (tail_data - 50.00).sort_values(ascending=True).values
+            x_data = (tail_data - 50.00).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = threshold
-        elif direction == 'left': # from left to threshold (-inf, x_th]
+                x_k = threshold - 50
+        elif direction == 'left':  # from left to threshold (-inf, x_th]
             tail_data = df[df['Value'] <= threshold]['Value']
             tail_data_mirrored = 50 + (50 - tail_data)
-            x_data = 50 + (tail_data_mirrored - 50).sort_values(ascending=True).values
+            x_data = (tail_data_mirrored - 50).sort_values(ascending=True).values
             if len(x_data) > 0:
                 x_k = min(x_data)
             else:
-                x_k = 50 + (50 - threshold)
+                x_k = 50 - threshold
         else:
             raise ValueError("Direction must be 'right' or 'left'.")
 
@@ -413,6 +414,57 @@ def optimize_thresholds_heatmap(df, thresholds, alpha_range, direction, grid_nam
 
     return pd.DataFrame(results)
 
+def optimize_thresholds_BM(df, block_sizes, alpha_range, direction, grid_name, save_path):
+    beta_bounds = (1e-6, 3.0)
+    results = []
+
+    for block_size in block_sizes:
+        if direction == 'right':
+            extremes_type = 'high'
+        elif direction == 'left':
+            extremes_type = 'low'
+        else:
+            raise ValueError("Direction must be 'right' or 'left'.")
+        extremes = get_extremes_block_maxima(df['Value'], extremes_type, block_size, errors='ignore')
+
+        if len(extremes) < 20:
+            print(f"Not enough data for block size {block_size}. Skipping.")
+            continue
+
+        x_data = np.abs(50.00 - extremes).sort_values(ascending=True).values
+        x_data = x_data[x_data > 0]
+        x_k = x_data[0]
+
+        for alpha in alpha_range:
+            # beta_values = np.linspace(1e-6, 3, 300)
+            # ll_values = [log_likelihood(beta, alpha, x_data, x_k) for beta in beta_values]
+            # plt.plot(beta_values, ll_values)
+            # plt.title(f"Log-Likelihood vs Beta for alpha={alpha}")
+            result = minimize_scalar(
+                negative_log_likelihood,
+                bounds=beta_bounds,
+                args=(alpha, x_data, x_k),
+                method='bounded'
+            )
+            if result.success:
+                beta = result.x
+                nll = result.fun
+                results.append({
+                    'block_size': block_size,
+                    'alpha': alpha,
+                    'beta': beta,
+                    'log_likelihood': round(-nll, 4)
+                })
+
+    if results:
+        df_results = pd.DataFrame(results)
+        # Save results to CSV
+        df_results.to_csv(os.path.join(save_path, f'mle_{grid_name}_{direction}.csv'), index=False)
+
+        # For each block_size, save the row with alpha and beta that maximizes the log-likelihood
+        df_max = df_results.loc[df_results.groupby('block_size')['log_likelihood'].idxmax()]
+        df_max.to_csv(os.path.join(save_path, f'mle_max_{grid_name}_{direction}.csv'), index=False)
+
 
 def grid_search_thresholds(df, thresholds, alpha_range, beta_range, direction, grid_name, save_path):
     results = []
@@ -420,12 +472,19 @@ def grid_search_thresholds(df, thresholds, alpha_range, beta_range, direction, g
     for threshold in thresholds:
         if direction == 'right':  # from threshold to right [x_th, inf)
             tail_data = df[df['Value'] >= threshold]['Value']
-            x_data = 50 + (tail_data - 50.00).sort_values(ascending=True).values
-            x_k = threshold
+            x_data = (tail_data - 50.00).sort_values(ascending=True).values
+            if len(x_data) > 0:
+                x_k = min(x_data)
+            else:
+                x_k = threshold - 50
         elif direction == 'left':  # from left to threshold (-inf, x_th]
             tail_data = df[df['Value'] <= threshold]['Value']
-            x_data = 50.00 - (50.00 - tail_data).sort_values(ascending=False).values
-            x_k = threshold
+            tail_data_mirrored = 50 + (50 - tail_data)
+            x_data = (tail_data_mirrored - 50).sort_values(ascending=True).values
+            if len(x_data) > 0:
+                x_k = min(x_data)
+            else:
+                x_k = 50 - threshold
         else:
             raise ValueError("Direction must be 'right' or 'left'.")
 
@@ -480,12 +539,15 @@ directions = ['right', 'left']
 for season in seasons:
     for grid_name in grid_names:
         for direction in directions:
-            save_path = os.path.join(os.getcwd(), "results_new_decision_extend_2", season, grid_name, direction)
+            save_path = os.path.join(os.getcwd(), "results_new_data_countours_small", season, grid_name, direction)
             os.makedirs(save_path, exist_ok=True)
+            save_path_bm = os.path.join(os.getcwd(), "results_BM", season, grid_name, direction)
+            os.makedirs(save_path_bm, exist_ok=True)
+            block_sizes = ["10m", "1h"]
 
             print(f"Season: {season}, Grid: {grid_name}, Direction: {direction}")
             df = read_df(grid_name, season)
-            alpha_range = np.arange(100, 1000, 0.1) #[10**n for n in range(-10, 11)]
+            alpha_range = np.arange(10, 5000, 0.5) #[10**n for n in range(-10, 11)]
             # alpha_range = [(1/100)*(2**n) for n in range(-15, 5+1)] #np.linspace(0.01, 10, 20)
             if direction == 'right':
                 if grid_name == 'european':
@@ -500,6 +562,9 @@ for season in seasons:
             else:
                 raise ValueError("Direction must be 'right' or 'left'.")
 
+            optimize_thresholds_BM(df, block_sizes, alpha_range, direction, grid_name, save_path_bm)
+
+            # TODO: make function fit_levy_stable(df, thresholds, direction, grid_name, save_path)
             # plot_countour(df, thresholds, direction, season, grid_name, save_path)
             # plot_likelihood_fixed_beta(df, thresholds, beta=1.5, season=season, grid_name=grid_name, save_path=save_path)
             # plot_likelihood_fixed_beta(df, thresholds, beta=0.71, direction=direction, season=season, grid_name=grid_name, save_path=save_path)
@@ -509,7 +574,7 @@ for season in seasons:
             # plot_likelihood_fixed_alpha(df, thresholds, alpha=0.0833, direction=direction, season=season, grid_name=grid_name, save_path=save_path)
             # plot_likelihood_fixed_alpha(df, thresholds, alpha=5.35, season=season, grid_name=grid_name, save_path=save_path)
 
-            optimize_thresholds_heatmap(df, thresholds=thresholds, alpha_range=alpha_range, direction=direction, grid_name=grid_name, save_path=save_path)
+            # optimize_thresholds_heatmap(df, thresholds=thresholds, alpha_range=alpha_range, direction=direction, grid_name=grid_name, save_path=save_path)
             # beta_range = np.linspace(1.0, 3.0, 500)
             # print('\nGrid Search for Thresholds:')
             # grid_search_thresholds(df, thresholds=thresholds, alpha_range=alpha_range, beta_range=beta_range, direction=direction, grid_name=grid_name, save_path=save_path)

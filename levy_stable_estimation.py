@@ -417,6 +417,58 @@ def optimize_thresholds_heatmap(df, thresholds, alpha_range, direction, grid_nam
 
     return pd.DataFrame(results)
 
+def fit_levy_stable(df, thresholds, direction, grid_name, save_path):
+    center = 50.00
+    results = []
+    for threshold in thresholds:
+        # Select data tail based on direction
+        if direction == 'right':
+            tail_data = df[df['Value'] >= threshold]['Value']
+            x_data = (tail_data - center).sort_values(ascending=True).values
+            x_k = min(x_data) if len(x_data) > 0 else threshold - center
+        elif direction == 'left':
+            tail_data = df[df['Value'] <= threshold]['Value']
+            tail_data_mirrored = center + (center - tail_data)
+            x_data = (tail_data_mirrored - center).sort_values(ascending=True).values
+            x_k = min(x_data) if len(x_data) > 0 else center - threshold
+        else:
+            raise ValueError("Direction must be 'right' or 'left'.")
+
+        # Skip if not enough data or invalid values
+        if len(x_data) < 20 or np.any(x_data <= 0):
+            continue
+
+        try:
+            # Fit a Lévy stable distribution
+            alpha, beta, loc, scale = levy_stable._fitstart(x_data)
+            params = levy_stable.fit(x_data, floc=0, fscale=scale)
+            alpha, beta, loc, scale = params
+        except Exception as e:
+            print(f"Fit failed at threshold {threshold:.2f}: {e}")
+            continue
+
+        results.append({'alpha': alpha, 'beta': beta,'loc': loc, 'scale': scale, 'threshold': threshold, 'log_likelihood': np.sum(levy_stable.logpdf(x_data, alpha, beta, loc, scale))})
+
+        # Plotting
+        plt.figure(figsize=(6, 4))
+        count, bins, ignored = plt.hist(x_data, bins=100, density=True, alpha=0.6, label='Empirical')
+        x_vals = np.linspace(min(x_data), max(x_data), 1000)
+        pdf_vals = levy_stable.pdf(x_vals, alpha, beta, loc=loc, scale=scale)
+        plt.plot(x_vals, pdf_vals, 'r-', lw=2, label='Fitted Lévy-Stable')
+        plt.title(f"{grid_name} | {direction} | Threshold {threshold:.2f}")
+        plt.xlabel("Transformed Tail Data")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.tight_layout()
+
+        # Save plot
+        os.makedirs(os.path.join(save_path, "plots"), exist_ok=True)
+        plot_filename = f"levy_stable_fit_threshold_{threshold:.3f}.png"
+        plt.savefig(os.path.join(save_path, "plots", plot_filename))
+        plt.close()
+
+    df_results = pd.DataFrame(results)
+    df_results.to_csv(os.path.join(save_path, f'levy_stable_fit_{grid_name}_{direction}.csv'), index=False)
 
 def fit_levy(df, thresholds, direction, grid_name, save_path):
     center = 50.00
@@ -515,7 +567,7 @@ directions = ['right', 'left']
 for season in seasons:
     for grid_name in grid_names:
         for direction in directions:
-            save_path = os.path.join(os.getcwd(), "results_levy", season, grid_name, direction)
+            save_path = os.path.join(os.getcwd(), "results_levy_stable", season, grid_name, direction)
             save_path_bm = os.path.join(os.getcwd(), "results_levy_bm", season, grid_name, direction)
             os.makedirs(save_path, exist_ok=True)
             os.makedirs(save_path_bm, exist_ok=True)
@@ -537,8 +589,8 @@ for season in seasons:
             else:
                 raise ValueError("Direction must be 'right' or 'left'.")
 
-            # fit_levy(df, thresholds, direction, grid_name, save_path)
-            fit_levy_bm(df, block_sizes, direction, grid_name, save_path_bm)
+            fit_levy_stable(df, thresholds, direction, grid_name, save_path)
+            # fit_levy_bm(df, block_sizes, direction, grid_name, save_path_bm)
             # plot_countour(df, thresholds, direction, season, grid_name, save_path)
             # plot_likelihood_fixed_beta(df, thresholds, beta=1.5, season=season, grid_name=grid_name, save_path=save_path)
             # plot_likelihood_fixed_beta(df, thresholds, beta=0.71, direction=direction, season=season, grid_name=grid_name, save_path=save_path)
